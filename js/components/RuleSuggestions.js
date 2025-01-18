@@ -63,7 +63,9 @@ export const RuleSuggestions = ({ item, onApplyRule }) => {
     return suggestions;
   };
 
-  // Groupe les suggestions par type
+  const suggestions = generateSuggestions(item);
+
+  // Groupe les suggestions par type après avoir généré les suggestions
   const groupedSuggestions = {
     basic: suggestions.filter(s => s.type === "basic"),
     defense: suggestions.filter(s => s.type === "defense"),
@@ -106,8 +108,6 @@ export const RuleSuggestions = ({ item, onApplyRule }) => {
       )
     );
   };
-
-  const suggestions = generateSuggestions(item);
 
   if (suggestions.length === 0) {
     return React.createElement('div', { className: 'text-gray-500 text-sm italic' },
