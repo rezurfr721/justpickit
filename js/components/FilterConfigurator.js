@@ -1,5 +1,6 @@
 import { ItemPreview } from './ItemPreview.js';
 import { RuleSuggestions } from './RuleSuggestions.js';
+import { beginnerTemplate } from '../templates/beginner.js';
 
 export const FilterConfigurator = ({ 
   currentTemplate, 
@@ -71,7 +72,10 @@ export const FilterConfigurator = ({
             React.createElement('div', { className: 'space-y-2' },
               React.createElement('button', {
                 className: 'w-full text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded',
-                onClick: () => onTemplateChange('beginner')
+                onClick: () => {
+                  setCurrentFilter(beginnerTemplate);
+                  onTemplateChange('beginner');
+                }
               }, '🌟 Beginner'),
               // Add other templates
             )

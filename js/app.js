@@ -1,3 +1,7 @@
+import { FilterConfigurator } from './components/FilterConfigurator.js';
+import { ItemPreview } from './components/ItemPreview.js';
+import { RuleSuggestions } from './components/RuleSuggestions.js';
+
 const App = () => {
     const [currentTemplate, setCurrentTemplate] = React.useState(null);
     const [currentFilter, setCurrentFilter] = React.useState(null);
