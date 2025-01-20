@@ -1,5 +1,26 @@
 export const RuleSuggestions = ({ item, onApplyRule }) => {
-  // Analyse l'item et génère des suggestions de règles
+  // Safely extract numeric value from modifier string
+  const extractNumericValue = (modifier) => {
+    try {
+      const matches = modifier.match(/\d+/);
+      return matches ? parseInt(matches[0], 10) : null;
+    } catch (error) {
+      console.error('Error parsing modifier value:', error);
+      return null;
+    }
+  };
+
+  // Safely check if modifier includes a keyword
+  const modifierIncludes = (modifier, keyword) => {
+    try {
+      return modifier.toLowerCase().includes(keyword.toLowerCase());
+    } catch (error) {
+      console.error('Error checking modifier:', error);
+      return false;
+    }
+  };
+
+  // Génère des suggestions de règles de manière sécurisée
   const generateSuggestions = (item) => {
     const suggestions = [];
 
@@ -7,73 +28,102 @@ export const RuleSuggestions = ({ item, onApplyRule }) => {
       return suggestions;
     }
 
-    // Suggestions basées sur la rareté
-    if (item.rarity === "Rare" || item.rarity === "Unique") {
-      suggestions.push({
-        rule: `[Rarity] == "${item.rarity}" && [Type] == "${item.type}" # [StashItem] == "true"`,
-        explanation: `Ramasser tous les items ${item.rarity.toLowerCase()} de type ${item.type}`,
-        type: "basic"
-      });
-    }
+    try {
+      // Suggestions basées sur la rareté
+      if (item.rarity && (item.rarity === "Rare" || item.rarity === "Unique") && item.type) {
+        suggestions.push({
+          rule: `[Rarity] == "${item.rarity}" && [Type] == "${item.type}" # [StashItem] == "true"`,
+          explanation: `Ramasser tous les items ${item.rarity.toLowerCase()} de type ${item.type}`,
+          type: "basic"
+        });
+      }
 
-    // Suggestions basées sur les résistances
-    const resistanceModifiers = item.modifiers?.filter(mod => 
-      mod.toLowerCase().includes("resistance")
-    );
-    if (resistanceModifiers?.length > 1) {
-      suggestions.push({
-        rule: `[Category] == "${item.category}" # [TotalResistances] > "${Math.floor(resistanceModifiers.length * 30)}" && [StashItem] == "true"`,
-        explanation: "Ramasser les items avec de bonnes résistances totales",
-        type: "defense"
-      });
-    }
+      // Suggestions basées sur les résistances
+      if (Array.isArray(item.modifiers)) {
+        const resistanceModifiers = item.modifiers.filter(mod => 
+          mod && modifierIncludes(mod, "resistance")
+        );
+        
+        if (resistanceModifiers.length > 1) {
+          const suggestedResistanceValue = Math.floor(resistanceModifiers.length * 30);
+          suggestions.push({
+            rule: `[Category] == "${item.category || 'Any'}" # [TotalResistances] > "${suggestedResistanceValue}" && [StashItem] == "true"`,
+            explanation: `Ramasser les items avec plus de ${suggestedResistanceValue}% de résistances totales`,
+            type: "defense"
+          });
+        }
 
-    // Suggestions basées sur la vie
-    const lifeModifier = item.modifiers?.find(mod => 
-      mod.toLowerCase().includes("life")
-    );
-    if (lifeModifier) {
-      const lifeValue = parseInt(lifeModifier.match(/\d+/)[0]);
-      suggestions.push({
-        rule: `[Category] == "${item.category}" # [Life] > "${Math.floor(lifeValue * 0.8)}" && [StashItem] == "true"`,
-        explanation: "Ramasser les items avec un bon bonus de vie",
-        type: "defense"
-      });
-    }
+        // Suggestions basées sur la vie
+        const lifeModifier = item.modifiers.find(mod => 
+          mod && modifierIncludes(mod, "life")
+        );
 
-    // Suggestions spécifiques aux armes
-    if (item.properties && ("Physical DPS" in item.properties || "Elemental DPS" in item.properties)) {
-      const dps = item.properties["Physical DPS"] || item.properties["Elemental DPS"];
-      suggestions.push({
-        rule: `[Category] == "Weapon" # [DPS] > "${Math.floor(dps * 0.8)}" && [StashItem] == "true"`,
-        explanation: "Ramasser les armes avec un bon DPS",
-        type: "weapon"
-      });
-    }
+        if (lifeModifier) {
+          const lifeValue = extractNumericValue(lifeModifier);
+          if (lifeValue) {
+            const suggestedLifeValue = Math.floor(lifeValue * 0.8);
+            suggestions.push({
+              rule: `[Category] == "${item.category || 'Any'}" # [Life] > "${suggestedLifeValue}" && [StashItem] == "true"`,
+              explanation: `Ramasser les items avec plus de ${suggestedLifeValue} points de vie`,
+              type: "defense"
+            });
+          }
+        }
+      }
 
-    // Suggestions basées sur le niveau d'item
-    if (item.itemLevel) {
-      suggestions.push({
-        rule: `[Category] == "${item.category}" && [ItemLevel] >= "${item.itemLevel}" # [StashItem] == "true"`,
-        explanation: `Ramasser les ${item.category} de haut niveau`,
-        type: "basic"
-      });
-    }
+      // Suggestions spécifiques aux armes
+      if (item.properties) {
+        const dps = item.properties["Physical DPS"] || item.properties["Elemental DPS"];
+        if (dps) {
+          const suggestedDpsValue = Math.floor(dps * 0.8);
+          suggestions.push({
+            rule: `[Category] == "Weapon" # [DPS] > "${suggestedDpsValue}" && [StashItem] == "true"`,
+            explanation: `Ramasser les armes avec plus de ${suggestedDpsValue} DPS`,
+            type: "weapon"
+          });
+        }
+      }
 
-    return suggestions;
+      // Suggestions basées sur le niveau d'item
+      if (item.itemLevel) {
+        suggestions.push({
+          rule: `[Category] == "${item.category || 'Any'}" && [ItemLevel] >= "${item.itemLevel}" # [StashItem] == "true"`,
+          explanation: `Ramasser les ${item.category || 'items'} de niveau ${item.itemLevel} ou plus`,
+          type: "basic"
+        });
+      }
+
+      return suggestions;
+    } catch (error) {
+      console.error('Error generating suggestions:', error);
+      return suggestions;
+    }
   };
 
-  const suggestions = generateSuggestions(item);
+  // Génère les suggestions de manière sécurisée
+  const suggestions = React.useMemo(() => generateSuggestions(item), [item]);
 
-  // Groupe les suggestions par type après avoir généré les suggestions
-  const groupedSuggestions = {
+  // Groupe les suggestions par type
+  const groupedSuggestions = React.useMemo(() => ({
     basic: suggestions.filter(s => s.type === "basic"),
     defense: suggestions.filter(s => s.type === "defense"),
     weapon: suggestions.filter(s => s.type === "weapon")
-  };
+  }), [suggestions]);
+
+  const handleApplyRule = React.useCallback((rule) => {
+    try {
+      if (typeof onApplyRule === 'function') {
+        onApplyRule(rule);
+      }
+    } catch (error) {
+      console.error('Error applying rule:', error);
+    }
+  }, [onApplyRule]);
 
   const renderSuggestionGroup = (title, suggestions, icon) => {
-    if (suggestions.length === 0) return null;
+    if (!Array.isArray(suggestions) || suggestions.length === 0) {
+      return null;
+    }
 
     return React.createElement('div', { className: 'mb-4' },
       React.createElement('h4', { 
@@ -98,9 +148,10 @@ export const RuleSuggestions = ({ item, onApplyRule }) => {
                 }, suggestion.explanation)
               ),
               React.createElement('button', {
-                onClick: () => onApplyRule(suggestion.rule),
+                onClick: () => handleApplyRule(suggestion.rule),
                 className: 'p-1.5 rounded hover:bg-amber-600/20 text-amber-500 flex-shrink-0',
-                title: 'Appliquer cette règle'
+                title: 'Appliquer cette règle',
+                'aria-label': `Appliquer la règle: ${suggestion.explanation}`
               }, '➕')
             )
           )
@@ -108,6 +159,12 @@ export const RuleSuggestions = ({ item, onApplyRule }) => {
       )
     );
   };
+
+  if (!item) {
+    return React.createElement('div', { className: 'text-gray-500 text-sm italic' },
+      'Sélectionnez un item pour voir les suggestions de règles.'
+    );
+  }
 
   if (suggestions.length === 0) {
     return React.createElement('div', { className: 'text-gray-500 text-sm italic' },

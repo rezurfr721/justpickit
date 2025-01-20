@@ -13,6 +13,8 @@ export const FilterConfigurator = ({
   const [activeTab, setActiveTab] = React.useState('templates');
   const [advancedMode, setAdvancedMode] = React.useState(false);
   const [selectedCategory, setSelectedCategory] = React.useState('currency');
+  const [selectedItem, setSelectedItem] = React.useState(null);
+  const [isProcessing, setIsProcessing] = React.useState(false);
   
   const categories = [
     { id: 'currency', name: 'Currency', icon: '💰' },
@@ -24,16 +26,51 @@ export const FilterConfigurator = ({
     { id: 'misc', name: 'Misc', icon: '📦' }
   ];
 
-  const handleFileUpload = (event) => {
+  const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (file) {
-      onImportFilter(file);
+      setIsProcessing(true);
+      try {
+        await onImportFilter(file);
+        setAdvancedMode(true); // Switch to advanced mode to show imported content
+      } finally {
+        setIsProcessing(false);
+      }
     }
   };
 
   const handleRuleEdit = (rule) => {
-    // À implémenter: logique d'édition des règles
-    console.log('Editing rule:', rule);
+    if (!currentFilter) {
+      setCurrentFilter(rule);
+      return;
+    }
+
+    // Add new rule to existing filter
+    const rules = currentFilter.split('\n');
+    rules.push(rule);
+    setCurrentFilter(rules.join('\n'));
+  };
+
+  const handleApplyTemplate = (templateName, template) => {
+    setCurrentFilter(template);
+    onTemplateChange(templateName);
+    setAdvancedMode(false); // Switch to basic mode after applying template
+  };
+
+  const handleRuleSuggestionApply = (rule) => {
+    if (!currentFilter) {
+      handleRuleEdit(rule);
+      return;
+    }
+
+    // Check if rule already exists
+    if (currentFilter.includes(rule)) {
+      return; // Avoid duplicates
+    }
+
+    // Add rule with a separator
+    const newFilter = currentFilter + '\n\n' + rule;
+    setCurrentFilter(newFilter);
   };
 
   return React.createElement('div', { className: 'min-h-screen bg-gray-900 text-gray-100' },
@@ -47,15 +84,17 @@ export const FilterConfigurator = ({
             accept: '.ipd',
             onChange: handleFileUpload,
             className: 'hidden',
-            id: 'filterUpload'
+            id: 'filterUpload',
+            disabled: isProcessing
           }),
           React.createElement('label', {
             htmlFor: 'filterUpload',
-            className: 'px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded-md cursor-pointer'
-          }, 'Import Filter'),
+            className: `px-4 py-2 bg-amber-600 hover:bg-amber-700 rounded-md cursor-pointer ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`
+          }, isProcessing ? 'Importing...' : 'Import Filter'),
           React.createElement('button', {
             onClick: onExportFilter,
-            className: 'px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md'
+            className: `px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md ${!currentFilter ? 'opacity-50 cursor-not-allowed' : ''}`,
+            disabled: !currentFilter
           }, 'Export Filter')
         )
       )
@@ -71,13 +110,9 @@ export const FilterConfigurator = ({
             React.createElement('h2', { className: 'text-xl font-semibold mb-3' }, 'Templates'),
             React.createElement('div', { className: 'space-y-2' },
               React.createElement('button', {
-                className: 'w-full text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded',
-                onClick: () => {
-                  setCurrentFilter(beginnerTemplate);
-                  onTemplateChange('beginner');
-                }
-              }, '🌟 Beginner'),
-              // Add other templates
+                className: `w-full text-left px-3 py-2 ${currentTemplate === 'beginner' ? 'bg-amber-600' : 'bg-gray-700'} hover:bg-gray-600 rounded`,
+                onClick: () => handleApplyTemplate('beginner', beginnerTemplate)
+              }, '🌟 Beginner')
             )
           ),
           // Categories Section
@@ -113,11 +148,14 @@ export const FilterConfigurator = ({
         advancedMode ?
           React.createElement('textarea', {
             className: 'w-full h-[600px] bg-gray-900 text-gray-100 p-4 rounded font-mono',
-            value: currentFilter,
-            onChange: (e) => setCurrentFilter(e.target.value)
+            value: currentFilter || '',
+            onChange: (e) => setCurrentFilter(e.target.value),
+            placeholder: 'Paste or edit your filter rules here...'
           })
           :
           React.createElement(ItemPreview, {
+            category: selectedCategory,
+            onSelectItem: setSelectedItem,
             onEditRule: handleRuleEdit
           })
       ),
@@ -125,10 +163,8 @@ export const FilterConfigurator = ({
       // Right Sidebar (Rule Suggestions)
       React.createElement('div', { className: 'col-span-3 bg-gray-800 rounded-lg p-4' },
         React.createElement(RuleSuggestions, {
-          onApplyRule: (rule) => {
-            // À implémenter: logique d'application des règles suggérées
-            console.log('Applying rule:', rule);
-          }
+          item: selectedItem,
+          onApplyRule: handleRuleSuggestionApply
         })
       )
     )
